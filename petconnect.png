@@ -1,0 +1,80 @@
+package repository;
+
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+
+import com.google.gson.JsonObject;
+
+import java.io.File;
+
+import api.Resource;
+import api.RetrofitClient;
+import api.SupabaseAPI;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+public class UserRepository {
+
+    private final SupabaseAPI supabaseAPI;
+
+    public UserRepository() {
+        // Asegúrate de que RetrofitClient.getClient() es estático y devuelve la instancia de Retrofit
+        supabaseAPI = RetrofitClient.getInstance().create(SupabaseAPI.class);
+    }
+
+    public LiveData<Resource<Void>> actualizarNombre(String token, String userId, String nuevoNombre) {
+        MutableLiveData<Resource<Void>> resultado = new MutableLiveData<>();
+        resultado.setValue(Resource.loading(null));
+
+        JsonObject jsonUpdate = new JsonObject();
+        jsonUpdate.addProperty("nombre", nuevoNombre); // Nombre de tu columna en Supabase
+        String filtroId = "eq." + userId;
+
+        supabaseAPI.actualizarUsuarioDB("Bearer " + token, filtroId, jsonUpdate).enqueue(new Callback<Void>() {
+            @Override
+            public void onResponse(Call<Void> call, Response<Void> response) {
+                if (response.isSuccessful()) {
+                    resultado.setValue(Resource.success(null));
+                } else {
+                    resultado.setValue(Resource.error("Error al actualizar datos en Supabase", null));
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Void> call, Throwable t) {
+                resultado.setValue(Resource.error(t.getMessage(), null));
+            }
+        });
+        return resultado;
+    }
+
+    public LiveData<Resource<Void>> subirFotoPerfil(String token, String userId, File archivoFoto) {
+        MutableLiveData<Resource<Void>> resultado = new MutableLiveData<>();
+        resultado.setValue(Resource.loading(null));
+
+        RequestBody requestFile = RequestBody.create(MediaType.parse("image/*"), archivoFoto);
+        MultipartBody.Part bodySubeImagen = MultipartBody.Part.createFormData("file", archivoFoto.getName(), requestFile);
+        String nombreArchivo = userId + ".jpg";
+
+        supabaseAPI.subirImagenPerfil("Bearer " + token, "avatares", nombreArchivo, bodySubeImagen).enqueue(new Callback<Void>() {
+            @Override
+            public void onResponse(Call<Void> call, Response<Void> response) {
+                if (response.isSuccessful()) {
+                    resultado.setValue(Resource.success(null));
+                } else {
+                    resultado.setValue(Resource.error("Error al subir foto al Storage", null));
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Void> call, Throwable t) {
+                resultado.setValue(Resource.error(t.getMessage(), null));
+            }
+        });
+        return resultado;
+    }
+}
